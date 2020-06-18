@@ -1,0 +1,283 @@
+---
+title: "Practice 1"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggfortify)
+library(gridExtra)
+library(benford.analysis)
+```
+
+## Question 1
+
+Read in the *election-iran-2009.csv* dataset. These are the actual results of the 2009 iranian presidential elections that Mahmoud Ahmadinejad won. Following this election, there were wide-spread allegations about voter fraud resulting in protests by millions of people.
+
+__Part a__
+
+Use Benford's law to make a case for or against voter fraud. Note: We want benford's law applied on the first digits. __Hint__: Use the benford() function from the 'benford.analysis' package in R.
+
+__Answer__
+
+```{r}
+iran = read_csv("election-iran-2009.csv")
+ben = benford(data = iran[['Total votes']], number.of.digits = 1)
+plot(ben)
+```
+
+```{r}
+chisq(ben)
+```
+
+The plots of the distributions of the first digits for the total votes as well as for all the candidates suggest that there may something anomalous about the data. However, the chi squared value suggests that there is little evidence to support the hypothesis that the distribution does not follow benford's law. As such, our case against voter fraud appears to be stronger.
+
+__Part b__
+
+What more would you need to make a stronger case for voter fraud?
+
+__Answer__
+
+The reason the case against voter fraud is stronger in the previous part is likely just because of the sample size. A more comprehensive analysis with more data, perhaps with data from the various cities in each of iran's regions, is needed to convincingly prove fraud.
+
+## Question 2
+
+Note: The data for this question has been adapted from :-
+
+https://www.kaggle.com/c/house-prices-advanced-regression-techniques/data 
+
+You can read the description of the data there.
+
+__Part a__
+
+Load in the prices_before_2009.csv data and assign it to a variable called *before_2009*. We recommend using the read_csv() function from the tidyverse package to do this for this and all subsequent assignments. Remember to convert the following columns to character or factor type: MSSubClass, OverallQual, OverallCond.
+
+__Answer__
+
+```{r}
+before_2009 = read_csv("prices_before_2009.csv")
+before_2009[["MSSubClass"]] = before_2009[["MSSubClass"]] %>% as.character()
+before_2009[["OverallQual"]] = before_2009[["OverallQual"]] %>% as.character()
+before_2009[["OverallCond"]] = before_2009[["OverallCond"]] %>% as.character()
+```
+
+__Part b__
+
+How many NAs does each column have? Display your answer as a dataframe (or tibble) with two columns, one containing the names of the columns of *before_2009* and the other containing the number of NAs in each column. Call this dataframe *nones*. Print only the first 6 (head) rows of this dataframe.
+
+__Answer__
+
+```{r}
+temp = map(before_2009, ~sum(is.na(.))) %>% as_tibble() %>% t()
+nones = tibble('Columns' = rownames(temp), "NAs" = temp[,1])
+nones %>% head()
+```
+
+__Part c__
+
+Drop all the columns (except SalePrice) that have too many missing values (our threshold is >= 20 NAs) as well as the columns called X1, Id, and Utilities (all its values are the same). While some of the columns we drop here may contribute to the predictive accuracy of our model, the majority of the information explained will be contained in the remaining variables.
+
+__Answer__
+
+```{r}
+drops = nones %>% filter(NAs >= 20) %>% pull(Columns)
+drops = drops[drops != 'SalePrice']
+drops = c(drops, 'X1', 'Id', 'Utilities')
+before_2009 = before_2009 %>% 
+  dplyr::select(-drops)
+```
+
+__Part d__
+
+Conduct a multiple linear regression on all the variables with *SalePice* as the response and check which variables are significant (you don't need to tell us what they are and please DO NOT show us the results/summary of your regression. This is just for yourself). What command/s did you use to do this regresssion?
+
+__Answer__
+
+```{r}
+reg = lm(SalePrice ~ ., data = before_2009)
+summary(reg)
+```
+
+__Part e__
+
+Using the result of this and your general understanding of what variables should be important in determining *SalePrice*, choose a maximum of 15 variables and create another, smaller regression, and call it *reg1*. Show us the summary of this regression. Note: Normally you would do a more detailed variable selection using a backward or step-wise selection approach but this is __NOT__ required for this question.
+
+__Answer__
+
+```{r}
+reg1 = lm(SalePrice ~ PoolArea + ScreenPorch + KitchenQual + X1stFlrSF + X2ndFlrSF +
+            TotalBsmtSF + BsmtUnfSF + ExterQual + MasVnrArea + RoofMatl + YearBuilt +
+            OverallQual + OverallCond + LotArea, data = before_2009)
+summary(reg1)
+```
+
+__Part f__
+
+Why did we choose to do a smaller regression (called *reg1*) instead of one on all the columns of the dataset (despite the fact that the latter had a higher R squared)?
+
+__Answer__
+
+We chose to do a smaller regression so that we do not overfit to the data and have better out of sample generalization from our model.
+
+__Part g__
+
+Display diagnostic plots of your regression. We are expecting a QQ-Plot, a Residual versus Fitted Values plot, a $\sqrt{Standardized \; Residuals}$ vs Fitted Values plot, and a Standardized Residuals vs Leverage plot. Do not worry if your residuals have a slight curve to them.
+
+__Answer__
+
+```{r}
+reg1 %>%
+  autoplot()
+```
+
+__Part h__
+
+Read in the *prices_after_2009.csv* data and assign it to a variable called *after_2009*. Repeat your data manipulation operations from parts a, b, and c on this new dataset. The dataset contains data for house prices after 2009.
+
+__Answer__
+
+```{r}
+after_2009 = read_csv("prices_after_2009.csv")
+after_2009[["MSSubClass"]] = after_2009[["MSSubClass"]] %>% as.character()
+after_2009[["OverallQual"]] = after_2009[["OverallQual"]] %>% as.character()
+after_2009[["OverallCond"]] = after_2009[["OverallCond"]] %>% as.character()
+after_2009 = after_2009[ , !(names(after_2009) %in% drops)]
+```
+
+__Part i__
+
+Local authorities found in 2011 that there was housing fraud taking place in several neighborhoods, including NAmes, Gilbert and NridgHt, in 2009 and 2010. Make a density plot (which data scientists often use to catch outliers or anomalous activity) for SalePrice (after 2009) for all the neighborhoods (with or without fraud) and arrange them all in a grid. We recommend using ggplot2 for these plots.
+
+__Answer__
+
+```{r}
+ggplot(data = after_2009, aes(x = SalePrice)) + 
+  geom_density() +
+  facet_wrap(~ Neighborhood) +
+  ggtitle("Density Plots of Sale Price for All Neighborhoods") +
+  xlab('Sale Price')
+```
+
+__Part j__
+
+As you can see, the density plot for NAmes between 2009 and 2010 does not look any different from other density plots. The fraudster was therefore obviously making some effort to mask her activities. Now make 2 density plots, one for SalePrice in NAmes before 2009 and the other for after 2009. Compare the two to see if there is visual evidence of anomalous activity. Now do the same for Gilbert and see if anything anomalous is detectable between these plots.
+
+__Answer__
+
+```{r}
+p1 = before_2009 %>% filter(Neighborhood == "NAmes") %>% 
+  ggplot(aes(x = SalePrice)) + 
+  geom_density(fill = 'darkgreen', alpha = 0.5) +
+  ggtitle("Density Plot NAmes Before 2009") +
+  xlab('Sale Price')
+
+p2 = after_2009 %>% filter(Neighborhood == "NAmes") %>% 
+  ggplot(aes(x = SalePrice)) + 
+  geom_density(fill = 'darkred', alpha = 0.5) +
+  ggtitle("Density Plot NAmes After 2009") +
+  xlab('Sale Price')
+
+p3 = before_2009 %>% filter(Neighborhood == "Gilbert") %>% 
+  ggplot(aes(x = SalePrice)) + 
+  geom_density(fill = 'darkblue', alpha = 0.5) +
+  ggtitle("Density Plot Gilbert Before 2009") +
+  xlab('Sale Price')
+
+p4 = after_2009 %>% filter(Neighborhood == "Gilbert") %>% 
+  ggplot(aes(x = SalePrice)) + 
+  geom_density(fill = 'orange', alpha = 0.5) +
+  ggtitle("Density Plot Gilbert After 2009") +
+  xlab('Sale Price')
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+In NAmes, there is little evidence of anything anomalous but the density plot for Gilbert suggests something is definitely off about the housing prices.
+
+__Part k__
+
+As you saw in the previous part, the fraudster was not very careful in masking her activity. In actuallity, in her attempt to misrepresent the data, she just put the mean value of the houses in NAmes before 2009, i.e. 142769.7, as the value of all the houses whose sale price she was fabricating (even if these houses were not in NAmes). Her hope was that not-so-smart fraud detectors would just check to see if the mean of the house prices before and after 2009 were roughly the same (with any changes coming from fluctuations in house prices).
+
+Despite a change in the density plots, we still have little evidence to call this fraudulant activity. In an attempt to get more evidence, we will be using multiple linear regression. Using the variables you chose in Part f (which you know are good at predicting SalePrice), make a new regression called *reg2* using the same variables but the *after_2009* dataset instead.
+
+__Answer__
+
+```{r}
+reg2 = lm(SalePrice ~ PoolArea + ScreenPorch + KitchenQual + X1stFlrSF + X2ndFlrSF + 
+            TotalBsmtSF + BsmtUnfSF + ExterQual + MasVnrArea + RoofMatl + YearBuilt +
+            OverallQual + OverallCond + LotArea, data = after_2009)
+```
+
+__Part l__
+
+Check the diagnostic plots (same as in part g. You must submit them in this answer) to see if you can detect any anomalous behavior in your data. If you detect anomalous behavior, tell us what is strange about it.
+
+__Answer__
+
+```{r}
+reg2 %>%
+  autoplot()
+```
+
+There is a stretch of points that demonstrate an unexplained pattern in the residual plot. These points form a somewhat straight line jutting out of the clumped residuals in the residual plot suggesting that an unexplained pattern in the data exists.
+
+__Part m__
+
+Lets suppose the fraudster was more thorough in her efforts. This part is going to give you an opportunity to get inside a fraudseter's head. 
+
+Instead of misrepresenting values by just reporting the mean value of the houses sold in NAmes before 2009, she would do something more clever and nuanced. Your job now is to find the rows in which the price has been misrepresented. You must tell us what command you would use to get these rows. Then you must generate smarter values for the SalePrice in those rows. You must show us the exact commands/functions you used to do this and tell us why you chose to do generate values this way. Change the SalePrice values in these rows using your method and then try your fraud inspection techniques of comparing old and new density plots as well as using the diagnostic plots to show that now the fraud is much harder to catch. You must share these plots with us.
+
+__Answer__
+
+I decided to use the before 2009 regression that I developed to predict the fraudulant values for the houses after 2009. I chose to do this as it will produce fraudulent values that are informed by all the available data and therefore much more likely to be close to the real values of the homes that I am trying to generate values for.
+
+```{r}
+fraud = after_2009 %>%
+  filter(SalePrice == 142769.7)
+remv = which(after_2009[['SalePrice']] == 142769.7)
+after_2009[['SalePrice']][remv] = predict(reg1, fraud)
+```
+
+Comparing the density plots, we see that the plots for Gilbert no longer suggest something anamolous :-
+
+```{r}
+p1 = before_2009 %>% filter(Neighborhood == "NAmes") %>% 
+  ggplot(aes(x = SalePrice)) + 
+  geom_density(fill = 'darkgreen', alpha = 0.5) +
+  ggtitle("Density Plot NAmes Before 2009") +
+  xlab('Sale Price')
+
+p2 = after_2009 %>% filter(Neighborhood == "NAmes") %>% 
+  ggplot(aes(x = SalePrice)) + 
+  geom_density(fill = 'darkred', alpha = 0.5) +
+  ggtitle("Density Plot NAmes After 2009") +
+  xlab('Sale Price')
+
+p3 = before_2009 %>% filter(Neighborhood == "Gilbert") %>% 
+  ggplot(aes(x = SalePrice)) + 
+  geom_density(fill = 'darkblue', alpha = 0.5) +
+  ggtitle("Density Plot Gilbert Before 2009") +
+  xlab('Sale Price')
+
+p4 = after_2009 %>% filter(Neighborhood == "Gilbert") %>% 
+  ggplot(aes(x = SalePrice)) + 
+  geom_density(fill = 'orange', alpha = 0.5) +
+  ggtitle("Density Plot Gilbert After 2009") +
+  xlab('Sale Price')
+
+grid.arrange(p1, p2, p3, p4, nrow = 2)
+```
+
+As can be seen in the diagnostic plots below, it is now much harder to observe any anamolous activity. There is no longer a stretch of points clearly jutting out in the residual plots.
+
+```{r}
+reg3 = lm(SalePrice ~ PoolArea + ScreenPorch + KitchenQual + X1stFlrSF + X2ndFlrSF + 
+            TotalBsmtSF + BsmtUnfSF + ExterQual + MasVnrArea + RoofMatl + YearBuilt +
+            OverallQual + OverallCond + LotArea, data = after_2009)
+reg3 %>%
+  autoplot()
+```
+
